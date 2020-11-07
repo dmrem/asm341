@@ -1,3 +1,9 @@
+
+# ----------------------------------------------------------------------------------------
+# asm341.py - an assembler for the 4-bit microcontroller developed in CME341 at the U of S
+# Written by Dylan Remus
+# ----------------------------------------------------------------------------------------
+
 import sys
 
 # to save me time copying and pasting and reading the 341 notes, I put these values here to use
@@ -48,38 +54,6 @@ instruction_num_params = {
     'not': 1   # one's complement - bitwise not
 }
 
-
-def write_hex_file(blocks: bytearray, filename: str) -> None:
-    """
-    Writes a .hex file containing the given data. Currently only supports files up to 256 bytes long, and breaks for anything longer.
-    :param blocks: A byte array up to 256 bytes long.
-    :param filename: The file to write to.
-    """
-    # the intel .hex format is actually really simple for small stuff like this, it's just a super simple text file,
-    # the format is well documented, and it's compatible with quartus, so it's perfect for something like this
-    # for more info, see https://en.wikipedia.org/wiki/Intel_HEX or https://www.keil.com/support/docs/1584/
-    # or just google it, there's tons of info out there
-    try:
-        with open(filename, 'w') as f:
-            for addr, inst in enumerate(blocks):
-                addrhex = hex(addr)[2:].zfill(4)
-                insthex = hex(inst)[2:].zfill(2)
-
-                f.write(":")             # start code
-                f.write('01')            # number of bytes in data
-                f.write(addrhex)         # address
-                f.write('00')            # data type of record - for this file it's always numeric data
-                f.write(insthex)         # data
-                checksum = (~(1 + addr + 0 + inst) + 1) & 0xFF
-                f.write(hex(checksum)[2:].zfill(2) + '\n') # checksum - see https://en.wikipedia.org/wiki/Intel_HEX#Checksum_calculation
-
-            f.write(':00000001FF')       # end of file marker
-
-    except IOError:
-        print(f"Could not open {filename} for writing. Make sure you have write permissions.")
-        exit(1)
-
-
 def preprocess(line: str, state:dict) -> list:
     """
     Processes a line to remove comments and extra spaces, executes previously declared macros,
@@ -97,7 +71,7 @@ def preprocess(line: str, state:dict) -> list:
     splitline = line.lower().split()  # changes to lowercase, removes all spaces - leaves instruction and params, that's it
     return splitline
 
-def parse(processed_line: list, state: dict):
+def parse(processed_line: list, state: dict) -> int:
     """
     Parses a preprocessed line of asm and determines if it contains a line of asm code or an assembler directive.
     If the input is a line of code, converts it to its corresponding machine code.
@@ -445,14 +419,47 @@ def parse(processed_line: list, state: dict):
     print(f"Error: Unknown instruction on line {state['current_line']}: {processed_line[0]}\nExiting.")
     exit(1)
 
+def write_hex_file(blocks: bytearray, filename: str) -> None:
+    """
+    Writes a .hex file containing the given data. Currently only supports files up to 256 bytes long, and breaks for anything longer.
+    :param blocks: A byte array up to 256 bytes long.
+    :param filename: The file to write to.
+    """
+    # the intel .hex format is actually really simple for small stuff like this, it's just a super simple text file,
+    # the format is well documented, and it's compatible with quartus, so it's perfect for something like this
+    # for more info, see https://en.wikipedia.org/wiki/Intel_HEX or https://www.keil.com/support/docs/1584/
+    # or just google "intel .hex format", there's tons of info out there
+    try:
+        with open(filename, 'w') as f:
+            for addr, inst in enumerate(blocks):
+                addrhex = hex(addr)[2:].zfill(4)
+                insthex = hex(inst)[2:].zfill(2)
+
+                f.write(":")             # start code
+                f.write('01')            # number of bytes in data
+                f.write(addrhex)         # address
+                f.write('00')            # data type of record - for this file it's always numeric data
+                f.write(insthex)         # data
+                checksum = (~(1 + addr + inst) + 1) & 0xFF
+                f.write(hex(checksum)[2:].zfill(2) + '\n') # checksum - see https://en.wikipedia.org/wiki/Intel_HEX#Checksum_calculation
+
+            f.write(':00000001FF')       # end of file marker
+
+    except IOError:
+        print(f"Could not open {filename} for writing. Make sure you have write permissions.")
+        exit(1)
+
 def main():
 
-    if len(sys.argv) != 3:
-        print("Wrong number of arguments.\nSyntax: python asm341.py <infile> <outfile>")
+    if len(sys.argv) < 2:
+        print("Not enough arguments.\nSyntax: python asm341.py <infile> or python asm341.py <infile> <outfile>")
         return 1
 
     infilename = sys.argv[1]
-    outfilename = sys.argv[2]
+    if len(sys.argv) == 2:
+        outfilename = "out.hex"
+    else:
+        outfilename = sys.argv[2]
 
     # code is stored in one of 16 blocks, each 16 bytes long, for 256 instructions total
     # jump instuctions can only jump to the beginning of a block,
