@@ -2,7 +2,7 @@ import sys
 
 # to save me time copying and pasting and reading the 341 notes, I put these values here to use
 instruction_base_values = {
-    'ld': 0b00000000,  # load
+    'ld' : 0b00000000,  # load
     'mov': 0b10000000,  # move
     'jmp': 0b11100000,  # unconditional jump
     'jnz': 0b11110000,  # jump if not zero
@@ -24,15 +24,15 @@ register_values = {
     'x1': 1,  # general reg / alu operand
     'y0': 2,  # general reg / alu operand
     'y1': 3,  # general reg / alu operand
-    'r': 4,  # alu result
+    'r' : 4,  # alu result
     'o_reg': 4,  # mcu output
-    'm': 5,  # data memory address auto-increment value
-    'i': 6,  # data memory address
-    'dm': 7  # data memory value
+    'm' : 5,  # data memory address auto-increment value
+    'i' : 6,  # data memory address
+    'dm': 7   # data memory value
 }
 
 instruction_num_params = {
-    'ld': 2,  # load
+    'ld' : 2,  # load
     'mov': 2,  # move
     'jmp': 1,  # unconditional jump
     'jnz': 1,  # jump if not zero
@@ -59,20 +59,25 @@ def write_hex_file(blocks: bytearray, filename: str) -> None:
     # the format is well documented, and it's compatible with quartus, so it's perfect for something like this
     # for more info, see https://en.wikipedia.org/wiki/Intel_HEX or https://www.keil.com/support/docs/1584/
     # or just google it, there's tons of info out there
-    with open(filename, 'w') as f:
-        for addr, inst in enumerate(blocks):
-            addrhex = hex(addr)[2:].zfill(4)
-            insthex = hex(inst)[2:].zfill(2)
+    try:
+        with open(filename, 'w') as f:
+            for addr, inst in enumerate(blocks):
+                addrhex = hex(addr)[2:].zfill(4)
+                insthex = hex(inst)[2:].zfill(2)
 
-            f.write(":")             # start code
-            f.write('01')            # number of bytes in data
-            f.write(addrhex)         # address
-            f.write('00')            # data type of record - for this file it's always numeric data
-            f.write(insthex)         # data
-            checksum = (~(1 + addr + 0 + inst) + 1) & 0xFF
-            f.write(hex(checksum)[2:].zfill(2) + '\n') # checksum - see https://en.wikipedia.org/wiki/Intel_HEX#Checksum_calculation
+                f.write(":")             # start code
+                f.write('01')            # number of bytes in data
+                f.write(addrhex)         # address
+                f.write('00')            # data type of record - for this file it's always numeric data
+                f.write(insthex)         # data
+                checksum = (~(1 + addr + 0 + inst) + 1) & 0xFF
+                f.write(hex(checksum)[2:].zfill(2) + '\n') # checksum - see https://en.wikipedia.org/wiki/Intel_HEX#Checksum_calculation
 
-        f.write(':00000001FF')       # end of file marker
+            f.write(':00000001FF')       # end of file marker
+
+    except IOError:
+        print(f"Could not open {filename} for writing. Make sure you have write permissions.")
+        exit(1)
 
 
 def preprocess(line: str, state:dict) -> list:
@@ -93,6 +98,16 @@ def preprocess(line: str, state:dict) -> list:
     return splitline
 
 def parse(processed_line: list, state: dict):
+    """
+    Parses a preprocessed line of asm and determines if it contains a line of asm code or an assembler directive.
+    If the input is a line of code, converts it to its corresponding machine code.
+    If the input is an assembler directive, executes that directive.
+    :param processed_line: A line of code that has gone through preprocess().
+    :param state: The assembler state object.
+    :return: A byte of machine code which corresponds to the input asm.
+    """
+
+    # one day, separate this into two functions, one for directives and one for instructions
 
     # assembler directives
     if processed_line[0][0] == '.':
@@ -131,6 +146,7 @@ def parse(processed_line: list, state: dict):
                 exit(1)
 
             state['current_block'] = block
+            state['current_addr'] = 0
             return -1
 
         else:
@@ -145,9 +161,11 @@ def parse(processed_line: list, state: dict):
 
     # this part of the parsing would be easier and nicer if I were using a different language or if I didn't want
     # to keep this program all in 1 file, but whatever
+    # the following code is mostly copied and pasted, the only stuff that changes is the error checking depending
+    # on the datatype of the parameters (number or register)
 
     if processed_line[0] == 'ld':
-        if len(processed_line) < instruction_num_params['ld']:
+        if len(processed_line) < instruction_num_params['ld'] + 1:
             print(f'Error: Not enough arguments for ld on line {state["current_line"]}: {" ".join(processed_line)}\nExiting.')
             exit(1)
 
@@ -174,7 +192,7 @@ def parse(processed_line: list, state: dict):
         return instruction_base_values['ld'] | p1 | p2
     
     if processed_line[0] == 'mov':
-        if len(processed_line) < instruction_num_params['mov']:
+        if len(processed_line) < instruction_num_params['mov'] + 1:
             print(f'Error: Not enough arguments for mov on line {state["current_line"]}: {" ".join(processed_line)}\nExiting.')
             exit(1)
 
@@ -205,7 +223,7 @@ def parse(processed_line: list, state: dict):
         return instruction_base_values['mov'] | p1 | p2
     
     if processed_line[0] == 'jmp':
-        if len(processed_line) < instruction_num_params['jmp']:
+        if len(processed_line) < instruction_num_params['jmp'] + 1:
             print(f'Error: Not enough arguments for jmp on line {state["current_line"]}: {" ".join(processed_line)}\nExiting.')
             exit(1)
 
@@ -223,7 +241,7 @@ def parse(processed_line: list, state: dict):
         return instruction_base_values['jmp'] | p1
     
     if processed_line[0] == 'jnz':
-        if len(processed_line) < instruction_num_params['jnz']:
+        if len(processed_line) < instruction_num_params['jnz'] + 1:
             print(f'Error: Not enough arguments for jnz on line {state["current_line"]}: {" ".join(processed_line)}\nExiting.')
             exit(1)
 
@@ -239,6 +257,190 @@ def parse(processed_line: list, state: dict):
             exit(1)
 
         return instruction_base_values['jnz'] | p1
+
+    if processed_line[0] == 'neg':
+        if len(processed_line) < instruction_num_params['neg'] + 1:
+            print(f'Error: Not enough arguments for neg on line {state["current_line"]}: {" ".join(processed_line)}\nExiting.')
+            exit(1)
+
+        if processed_line[1] == 'x0' or processed_line[1] == '0':
+            p1 = 0
+        elif processed_line[1] == 'x1' or processed_line[1] == '1':
+            p1 = 1 << 4
+        else:
+            print(f"Error: invalid parameter for neg on {state['current_line']}: {' '.join(processed_line)}\nExpected one of 0, 1, x0, or x1. Exiting.")
+            exit(1)
+        return instruction_base_values['neg'] | p1
+    
+    if processed_line[0] == 'not':
+        if len(processed_line) < instruction_num_params['not'] + 1:
+            print(f'Error: Not enough arguments for not on line {state["current_line"]}: {" ".join(processed_line)}\nExiting.')
+            exit(1)
+
+        if processed_line[1] == 'x0' or processed_line[1] == '0':
+            p1 = 0
+        elif processed_line[1] == 'x1' or processed_line[1] == '1':
+            p1 = 1 << 4
+        else:
+            print(f"Error: invalid parameter for not on {state['current_line']}: {' '.join(processed_line)}\nExpected one of 0, 1, x0, or x1. Exiting.")
+            exit(1)
+        return instruction_base_values['not'] | p1
+    
+    if processed_line[0] == 'sub':
+        if len(processed_line) < instruction_num_params['sub'] + 1:
+            print(f'Error: Not enough arguments for sub on line {state["current_line"]}: {" ".join(processed_line)}\nExiting.')
+            exit(1)
+
+        if processed_line[1] == 'x0' or processed_line[1] == '0':
+            p1 = 0
+        elif processed_line[1] == 'x1' or processed_line[1] == '1':
+            p1 = 1 << 4
+        else:
+            print(f"Error: invalid value for parameter 1 for sub on {state['current_line']}: {' '.join(processed_line)}\nExpected one of 0, 1, x0, or x1. Exiting.")
+            exit(1)
+            
+        if processed_line[2] == 'y0' or processed_line[2] == '0':
+            p1 = 0
+        elif processed_line[2] == 'y1' or processed_line[2] == '1':
+            p1 = 1 << 3
+        else:
+            print(f"Error: invalid value for parameter 2 for sub on {state['current_line']}: {' '.join(processed_line)}\nExpected one of 0, 1, y0, or y1. Exiting.")
+            exit(1)
+            
+        return instruction_base_values['sub'] | p1 | p2
+
+    if processed_line[0] == 'add':
+        if len(processed_line) < instruction_num_params['add'] + 1:
+            print(
+                f'Error: Not enough arguments for add on line {state["current_line"]}: {" ".join(processed_line)}\nExiting.')
+            exit(1)
+
+        if processed_line[1] == 'x0' or processed_line[1] == '0':
+            p1 = 0
+        elif processed_line[1] == 'x1' or processed_line[1] == '1':
+            p1 = 1 << 4
+        else:
+            print(
+                f"Error: invalid value for parameter 1 for add on {state['current_line']}: {' '.join(processed_line)}\nExpected one of 0, 1, x0, or x1. Exiting.")
+            exit(1)
+
+        if processed_line[2] == 'y0' or processed_line[2] == '0':
+            p1 = 0
+        elif processed_line[2] == 'y1' or processed_line[2] == '1':
+            p1 = 1 << 3
+        else:
+            print(
+                f"Error: invalid value for parameter 2 for add on {state['current_line']}: {' '.join(processed_line)}\nExpected one of 0, 1, y0, or y1. Exiting.")
+            exit(1)
+
+        return instruction_base_values['add'] | p1 | p2
+
+    if processed_line[0] == 'muh':
+        if len(processed_line) < instruction_num_params['muh'] + 1:
+            print(
+                f'Error: Not enough arguments for muh on line {state["current_line"]}: {" ".join(processed_line)}\nExiting.')
+            exit(1)
+
+        if processed_line[1] == 'x0' or processed_line[1] == '0':
+            p1 = 0
+        elif processed_line[1] == 'x1' or processed_line[1] == '1':
+            p1 = 1 << 4
+        else:
+            print(
+                f"Error: invalid value for parameter 1 for muh on {state['current_line']}: {' '.join(processed_line)}\nExpected one of 0, 1, x0, or x1. Exiting.")
+            exit(1)
+
+        if processed_line[2] == 'y0' or processed_line[2] == '0':
+            p1 = 0
+        elif processed_line[2] == 'y1' or processed_line[2] == '1':
+            p1 = 1 << 3
+        else:
+            print(
+                f"Error: invalid value for parameter 2 for muh on {state['current_line']}: {' '.join(processed_line)}\nExpected one of 0, 1, y0, or y1. Exiting.")
+            exit(1)
+
+        return instruction_base_values['muh'] | p1 | p2
+
+    if processed_line[0] == 'mul':
+        if len(processed_line) < instruction_num_params['mul'] + 1:
+            print(
+                f'Error: Not enough arguments for mul on line {state["current_line"]}: {" ".join(processed_line)}\nExiting.')
+            exit(1)
+
+        if processed_line[1] == 'x0' or processed_line[1] == '0':
+            p1 = 0
+        elif processed_line[1] == 'x1' or processed_line[1] == '1':
+            p1 = 1 << 4
+        else:
+            print(
+                f"Error: invalid value for parameter 1 for mul on {state['current_line']}: {' '.join(processed_line)}\nExpected one of 0, 1, x0, or x1. Exiting.")
+            exit(1)
+
+        if processed_line[2] == 'y0' or processed_line[2] == '0':
+            p1 = 0
+        elif processed_line[2] == 'y1' or processed_line[2] == '1':
+            p1 = 1 << 3
+        else:
+            print(
+                f"Error: invalid value for parameter 2 for mul on {state['current_line']}: {' '.join(processed_line)}\nExpected one of 0, 1, y0, or y1. Exiting.")
+            exit(1)
+
+        return instruction_base_values['mul'] | p1 | p2
+
+    if processed_line[0] == 'xor':
+        if len(processed_line) < instruction_num_params['xor'] + 1:
+            print(
+                f'Error: Not enough arguments for xor on line {state["current_line"]}: {" ".join(processed_line)}\nExiting.')
+            exit(1)
+
+        if processed_line[1] == 'x0' or processed_line[1] == '0':
+            p1 = 0
+        elif processed_line[1] == 'x1' or processed_line[1] == '1':
+            p1 = 1 << 4
+        else:
+            print(
+                f"Error: invalid value for parameter 1 for xor on {state['current_line']}: {' '.join(processed_line)}\nExpected one of 0, 1, x0, or x1. Exiting.")
+            exit(1)
+
+        if processed_line[2] == 'y0' or processed_line[2] == '0':
+            p1 = 0
+        elif processed_line[2] == 'y1' or processed_line[2] == '1':
+            p1 = 1 << 3
+        else:
+            print(
+                f"Error: invalid value for parameter 2 for xor on {state['current_line']}: {' '.join(processed_line)}\nExpected one of 0, 1, y0, or y1. Exiting.")
+            exit(1)
+
+        return instruction_base_values['xor'] | p1 | p2
+
+    if processed_line[0] == 'and':
+        if len(processed_line) < instruction_num_params['and'] + 1:
+            print(
+                f'Error: Not enough arguments for and on line {state["current_line"]}: {" ".join(processed_line)}\nExiting.')
+            exit(1)
+
+        if processed_line[1] == 'x0' or processed_line[1] == '0':
+            p1 = 0
+        elif processed_line[1] == 'x1' or processed_line[1] == '1':
+            p1 = 1 << 4
+        else:
+            print(
+                f"Error: invalid value for parameter 1 for and on {state['current_line']}: {' '.join(processed_line)}\nExpected one of 0, 1, x0, or x1. Exiting.")
+            exit(1)
+
+        if processed_line[2] == 'y0' or processed_line[2] == '0':
+            p1 = 0
+        elif processed_line[2] == 'y1' or processed_line[2] == '1':
+            p1 = 1 << 3
+        else:
+            print(
+                f"Error: invalid value for parameter 2 for and on {state['current_line']}: {' '.join(processed_line)}\nExpected one of 0, 1, y0, or y1. Exiting.")
+            exit(1)
+
+        return instruction_base_values['and'] | p1 | p2
+
+    if processed_line[0] == 'nop':
+        return instruction_base_values['nop']
 
     print(f"Error: Unknown instruction on line {state['current_line']}: {processed_line[0]}\nExiting.")
     exit(1)
@@ -290,6 +492,12 @@ def main():
                 block = assembler_state['current_block']
                 addr = assembler_state['current_addr']
                 blocks[block * 16 + addr] = machine_code_instr
+                assembler_state['current_addr'] += 1 # proceed to the next address and check if you will be
+                if assembler_state['current_addr'] > 16: # proceeding into the next block, issue warning if so
+                    assembler_state['current_addr'] = 0
+                    assembler_state['current_block'] += 1
+                    print(f"Warning: Block {assembler_state['current_block'] - 1} contains more than 16 instructions, extra instructions are placed in block "
+                    f"{assembler_state['current_block']}. \nMake sure that block is not in use, otherwise some instructions may be overwritten.")
 
     except IOError:
         print(f"Could not open {infilename}. Please ensure it exists and that you have the necessary permissions to read it.")
