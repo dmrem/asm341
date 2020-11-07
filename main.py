@@ -9,7 +9,7 @@ import sys
 def write_hex_file(blocks: bytearray, filename: str) -> None:
     with open(filename, 'w') as f:
         for addr, inst in enumerate(blocks):
-            addrhex = hex(addr)[2:].zfill(2)
+            addrhex = hex(addr)[2:].zfill(4)
             insthex = hex(inst)[2:].zfill(2)
 
             f.write(":")             # start code
@@ -32,7 +32,7 @@ def main():
     blocks = bytearray(b'\x00'*16*16) # one dimension - 16 bytes per block, 16 blocks - access with blocks[16*block + addr]
     for i in range(256):
         blocks[i] = i
-    write_hex_file(blocks, "out.txt")
+    write_hex_file(blocks, "out.hex")
     pass
 
 if __name__ == "__main__":
