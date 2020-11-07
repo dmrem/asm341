@@ -64,11 +64,12 @@ def preprocess(line: str, state:dict) -> list:
     if ';' in line:
         line = line[:line.index(';')] # remove everything to the right of the first semicolon if it exists
 
-    if line[0] != '.': # don't process macros for assembler directives
-        for macro in state['defines']:
-            line = line.replace(' ' + macro + ' ', ' ' + state['defines'][macro] + ' ')
-
     splitline = line.lower().split()  # changes to lowercase, removes all spaces - leaves instruction and params, that's it
+
+    if len(splitline) > 0 and splitline[0][0] != '.': # don't process macros for assembler directives
+        for macro in state['defines']:
+            splitline = [(x if x != macro else state['defines'][macro]) for x in splitline] # expand macros by replacing tokens
+
     return splitline
 
 def parse(processed_line: list, state: dict) -> int:

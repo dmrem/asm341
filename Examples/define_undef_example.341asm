@@ -1,0 +1,22 @@
+; example program showing off macros
+
+; use it to give names to constants
+
+.define load_val 4
+    ld x0 load_val ; x0=4
+    mov x0 y0
+    add x0 y0
+    mov x0 r
+    ld x0 load_val ; now x0 contains 4 again
+    mov o_reg x0
+.undef load_val ; if I used load again now, the assembler would throw an error
+
+
+; you could also use it to give a name to an address,
+; and therefore give variables in memory names
+
+.define myVariable a ; myVariable is now a pointer to address 0xA
+    ld i myVariable ;
+    ld dm 5 ; now we could say that myVariable = 5
+
+; by the way, you don't have to .undef your .defines at the end of your file or anything, in case that wasn't obvious

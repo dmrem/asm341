@@ -1,0 +1,52 @@
+; example program showing off blocks
+
+; you can use blocks as labels for loops and other jumps
+
+    ld x0 0
+    ld y0 1
+    ld y1 a
+.block 1
+    add x0 y0 ; this loop adds 1 to x0 again and again until it reaches 10
+    mov x0 r
+    sub x0 y1 ; compare x0 and y1 - if they're the same, the result is 0, so the jnz on the second line won't trigger
+    jnz 1 ; if the loop isn't done yet, go back to the top
+    jmp 2 ; if the loop is done, proceed
+
+
+
+; it's important to think about how your code will be laid out in program memory
+; beware when using out of order blocks or using very long strings of instructions
+; as shown below, data can be overwritten when done incorrectly
+
+.block 3 ; pretend this is important code
+    ld x0 f
+    ld x1 f
+    ld y0 f
+    ld y1 f
+
+.block 2
+    nop
+    nop
+    nop
+    nop
+    nop
+    nop
+    nop
+    nop
+    nop
+    nop
+    nop
+    nop
+    nop
+    nop
+    nop
+    nop ; this nop is in the last address of block 2
+    ; note that a warning is generated when assembling this program because of this code
+    ; if you uncomment the .block 3 directive here, the warning is suppressed, but the overwrite still happens
+;.block 3
+    nop ; this nop is in block 3
+    nop ; if you look at the generated machine code, you'll see that the ld x0 f and the ld x1 f
+        ; instructions are overwritten with nops
+
+; of course, that commented .block directive doesn't have to go back to block 3, that was just for demonstration
+
